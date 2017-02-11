@@ -22,13 +22,12 @@ class ActivityInspector(object):
     """
     # TODO add couchpotato, sonarr, plex support (file renames etc. going on)
 
-    def __init__(self, sabnzbd_host = "127.0.0.1", sabnzbd_port = 8080,
-                 sabnzbd_api = None, samba_host = "127.0.0.1"):
+    def __init__(self, **kwargs):
         # TODO can we wrap all these in a config object somewhere?
-        self.sabnzbd_host = sabnzbd_host
-        self.sabnzbd_port = sabnzbd_port
-        self.sabnzbd_api = sabnzbd_api
-        self.samba_host = samba_host
+        self.sabnzbd_host = kwargs.get("sabnzbd_host", "127.0.0.1")
+        self.sabnzbd_port = kwargs.get("sabnzbd_port", 8080)
+        self.sabnzbd_api  = kwargs.get("sabnzbd_api")
+        self.samba_host   = kwargs.get("samba_host", "127.0.0.1")
 
     def inspect_sabnzbd(self):
         """ Checks on sabnzbd activities.
