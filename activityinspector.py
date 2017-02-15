@@ -1,6 +1,6 @@
 import requests
 import logging
-from customexceptions import ApiError
+from customexceptions import APIError
 import utils
 from activityregisters import SabnzbdActivityRegister, SambaActivityRegister
 
@@ -20,6 +20,7 @@ class ActivityInspector(object):
         sabnzbd_api : API key of sabnzbd
         samba_host : host where samba server is running
     """
+
     # TODO add couchpotato, sonarr, plex support (file renames etc. going on)
 
     def __init__(self, **kwargs):
@@ -29,29 +30,49 @@ class ActivityInspector(object):
         self.sabnzbd_api  = kwargs.get("sabnzbd_api")
         self.samba_host   = kwargs.get("samba_host", "127.0.0.1")
 
-    def inspect_sabnzbd(self):
-        """ Checks on sabnzbd activities.
+    def _get_sabnzbd_queuedetails(self):
+        """ Retrieves the queue details from sabnzbd
 
         Returns:
-           a SabnzbdActivityRegister object
+            dict with all the queue details
 
         Raises :
             API Error : Error code mentioned.
         """
-        api_url = "http://%s:%d/sabnzbd/api?apikey=%s&output=json&mode" \
-                  "=qstatus" \
-                  % (self.sabnzbd_host, self.sabnzbd_port, self.sabnzbd_api)
-        logging.debug("Checking status from : %s" % api_url)
-        resp = requests.get(api_url)
+        api = "http://%s:%d/sabnzbd/api?apikey=%s&output=json&mode=qstatus" \
+            % (self.sabnzbd_host, self.sabnzbd_port, self.sabnzbd_api)
+        logging.debug("Checking status from : %s" % api)
+        resp = requests.get(api)
         logging.debug("HTTP response code is %d." % resp.status_code)
         if resp.status_code != 200:
-            logging.error("Error in api call. HTTP response code returned"
-                           " : %d" % resp.status_code)
-            raise ApiError("Error in api call. HTTP response code returned"
-                           " : %d" % resp.status_code)
-        snr = SabnzbdActivityRegister(resp.json()["jobs"])
+            logging.error("Error in sabnzbd api call. HTTP response code "
+                          "returned : %d" % resp.status_code)
+            raise APIError("Error in sabnzbd api call. HTTP response code "
+                           "returned: %d" % resp.status_code)
+        else:
+            return resp.json()
+
+    def _get_samba_clients(self):
+        """ Retrieves the clients list from samba
+
+        Returns:
+            list of all connected clients
+        """
+        # TODO preferably use a library, don't assume localhost.
+        logging.debug("inspecting samba...")
+        command = 'sudo smbstatus -p | sed -n 5p | tr -s " " | cut -d" " -f4'
+        output = utils.run_os_command(command)
+        return output.strip().split("\n")
+
+    def inspect_sabnzbd(self):
+        """ Checks on sabnzbd activities.
+
+        Returns:
+           a SabnzbdActivityRegister object.
+        """
+        sabnzbd_activity_register = SabnzbdActivityRegister(self._get_sabnzbd_queuedetails()["jobs"])
         logging.debug("sabnzbd register prepared.")
-        return snr
+        return sabnzbd_activity_register
 
     def inspect_samba(self):
         """ Checks on samba activities.
@@ -59,12 +80,6 @@ class ActivityInspector(object):
         Returns :
             a SambaActivityRegister object
         """
-        # TODO preferably use a library, don't assume localhost.
-        clients_list_command = 'sudo smbstatus -p | sed -n 5p | tr -s " " ' \
-                               '| cut -d" " -f4'
-        logging.debug("inspecting samba...")
-        output = utils.run_os_command(clients_list_command)
-        clients = output.strip().split("\n")
-        smr = SambaActivityRegister(clients)
+        samba_register = SambaActivityRegister(self._get_samba_clients()["clients"])
         logging.debug("samba register prepared.")
-        return smr
+        return samba_register
